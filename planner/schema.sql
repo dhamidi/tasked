@@ -58,23 +58,48 @@ CREATE TABLE IF NOT EXISTS step_acceptance_criteria (
 -- Index for faster acceptance criteria lookup
 CREATE INDEX IF NOT EXISTS idx_step_acceptance_criteria_plan_step ON step_acceptance_criteria(plan_id, step_id);
 
--- step_references table: Stores references for each step
+-- Trigger to update parent plan's and step's updated_at timestamp when acceptance criteria change
+CREATE TRIGGER IF NOT EXISTS step_acceptance_criteria_updated_at
+AFTER INSERT OR UPDATE OR DELETE ON step_acceptance_criteria
+FOR EACH ROW
+BEGIN
+    -- Update the parent step's updated_at timestamp
+    UPDATE steps SET updated_at = CURRENT_TIMESTAMP 
+    WHERE plan_id = COALESCE(NEW.plan_id, OLD.plan_id) 
+    AND id = COALESCE(NEW.step_id, OLD.step_id);
+    
+    -- Update the parent plan's updated_at timestamp
+    UPDATE plans SET updated_at = CURRENT_TIMESTAMP 
+    WHERE id = COALESCE(NEW.plan_id, OLD.plan_id);
+END;
+
+-- step_references table: Stores reference URLs for each step
 CREATE TABLE IF NOT EXISTS step_references (
     plan_id TEXT NOT NULL,
     step_id TEXT NOT NULL,
-    reference TEXT NOT NULL,
+    reference_url TEXT NOT NULL,
     reference_order INTEGER NOT NULL, -- Order of references for a step
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (plan_id, step_id, reference_order),
     FOREIGN KEY (plan_id, step_id) REFERENCES steps(plan_id, id) ON DELETE CASCADE
 );
 
--- Index for faster references lookup
+-- Index for faster reference lookup
 CREATE INDEX IF NOT EXISTS idx_step_references_plan_step ON step_references(plan_id, step_id);
 
--- Trigger to update parent plan's and step's updated_at timestamp when criteria change
--- Note: SQLite does not directly support triggers on INSERT/DELETE/UPDATE for a table
--- that cause an update on a *grandparent* table (plans via steps) in a simple way
--- without more complex recursive triggers or application-level logic.
--- The steps_updated_at trigger will handle plan update when a step changes.
--- For criteria, we'll rely on application logic or direct step update if its criteria change.
+-- Trigger to update parent plan's and step's updated_at timestamp when references change
+CREATE TRIGGER IF NOT EXISTS step_references_updated_at
+AFTER INSERT OR UPDATE OR DELETE ON step_references
+FOR EACH ROW
+BEGIN
+    -- Update the parent step's updated_at timestamp
+    UPDATE steps SET updated_at = CURRENT_TIMESTAMP 
+    WHERE plan_id = COALESCE(NEW.plan_id, OLD.plan_id) 
+    AND id = COALESCE(NEW.step_id, OLD.step_id);
+    
+    -- Update the parent plan's updated_at timestamp
+    UPDATE plans SET updated_at = CURRENT_TIMESTAMP 
+    WHERE id = COALESCE(NEW.plan_id, OLD.plan_id);
+END;
+
+

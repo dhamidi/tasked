@@ -237,6 +237,15 @@ func (pl *Plan) Inspect() string {
 			}
 			builder.WriteString("\n") // Add a newline after the list
 		}
+
+		// References numbered list
+		if len(step.references) > 0 { // Use field
+			builder.WriteString("References:\n")
+			for j, reference := range step.references { // Use field
+				builder.WriteString(fmt.Sprintf("%d. %s\n", j+1, reference))
+			}
+			builder.WriteString("\n") // Add a newline after the list
+		}
 	}
 
 	return builder.String()
