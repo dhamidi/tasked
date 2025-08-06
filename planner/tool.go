@@ -60,6 +60,7 @@ func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 		mcp.WithString("step_id", mcp.Description("ID of the step (required for set_status, single step operations)")),
 		mcp.WithString("description", mcp.Description("Description of the step (required for add_steps when adding single step)")),
 		mcp.WithArray("acceptance_criteria", mcp.WithStringItems(), mcp.Description("Acceptance criteria for the step (for add_steps)")),
+		mcp.WithArray("references", mcp.WithStringItems(), mcp.Description("References for the step (for add_steps)")),
 		mcp.WithArray("step_ids", mcp.WithStringItems(), mcp.Description("IDs of steps (required for remove_steps)")),
 		mcp.WithArray("step_order", mcp.WithStringItems(), mcp.Description("New order of step IDs (required for reorder_steps)")),
 		mcp.WithArray("plan_names", mcp.WithStringItems(), mcp.Description("Names of plans to remove (required for remove_plans)")),
@@ -136,7 +137,8 @@ func handleAddSteps(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*
 	}
 
 	acceptanceCriteria := req.GetStringSlice("acceptance_criteria", []string{})
-	plan.AddStep(stepID, description, acceptanceCriteria, nil)
+	references := req.GetStringSlice("references", []string{})
+	plan.AddStep(stepID, description, acceptanceCriteria, references)
 
 	// Save the plan
 	err = p.Save(plan)
@@ -172,6 +174,7 @@ func handleInspectPlan(ctx context.Context, req mcp.CallToolRequest, p *Planner)
 			"description":         step.Description(),
 			"status":              step.Status(),
 			"acceptance_criteria": step.AcceptanceCriteria(),
+			"references":          step.References(),
 		}
 	}
 
@@ -349,6 +352,7 @@ func handleGetNextStep(ctx context.Context, req mcp.CallToolRequest, p *Planner)
 		"description":         nextStep.Description(),
 		"status":              nextStep.Status(),
 		"acceptance_criteria": nextStep.AcceptanceCriteria(),
+		"references":          nextStep.References(),
 	})
 
 	return mcp.NewToolResultText(string(result)), nil
