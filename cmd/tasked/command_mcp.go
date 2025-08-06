@@ -26,7 +26,7 @@ func init() {
 func runMCPServer(cmd *cobra.Command, args []string) error {
 	// Get the database file path from settings
 	dbPath := tasked.GlobalSettings.GetDatabaseFile()
-	
+
 	// Initialize the planner tool
 	toolInfo, err := planner.MakePlannerToolHandler(dbPath)
 	if err != nil {
