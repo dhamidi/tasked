@@ -2,6 +2,7 @@ package planner
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,9 @@ import (
 
 	_ "github.com/mattn/go-sqlite3" // SQLite driver
 )
+
+//go:embed schema.sql
+var embeddedSchema []byte
 
 // Planner manages plans using a SQLite database.
 type Planner struct {
@@ -63,24 +67,8 @@ func New(databasePath string) (*Planner, error) {
 		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
 	}
 
-	// Read schema.sql file
-	// Assuming schema.sql is in the same directory as this planner.go file.
-	// For a real application, this path might need to be configurable or embedded.
-	schemaPath := filepath.Join(filepath.Dir(databasePath), "schema.sql") // Adjusted to be relative to db path for now
-	if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-		// If schema.sql is not found next to db, try to find it next to the executable or in `planner/schema.sql`
-		exePath, _ := os.Executable()
-		schemaPath = filepath.Join(filepath.Dir(exePath), "planner", "schema.sql")
-		if _, err := os.Stat(schemaPath); os.IsNotExist(err) {
-			schemaPath = "planner/schema.sql" // Fallback for tests or specific structures
-		}
-	}
-
-	schemaSQL, err := os.ReadFile(schemaPath)
-	if err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to read schema file %s: %w", schemaPath, err)
-	}
+	// Use embedded schema
+	schemaSQL := embeddedSchema
 
 	// Execute schema
 	_, err = db.Exec(string(schemaSQL))
