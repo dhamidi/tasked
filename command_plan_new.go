@@ -1,9 +1,8 @@
-package main
+package tasked
 
 import (
 	"fmt"
 
-	"github.com/dhamidi/tasked"
 	"github.com/dhamidi/tasked/planner"
 	"github.com/spf13/cobra"
 )
@@ -21,7 +20,7 @@ func RunPlanNew(cmd *cobra.Command, args []string) error {
 	planName := args[0]
 
 	// Get the database file path from settings
-	dbPath := tasked.GlobalSettings.GetDatabaseFile()
+	dbPath := GlobalSettings.GetDatabaseFile()
 	
 	// Initialize the planner
 	p, err := planner.New(dbPath)

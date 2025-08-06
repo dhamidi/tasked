@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dhamidi/tasked"
+	tasked "github.com/dhamidi/tasked"
 	"github.com/spf13/cobra"
 )
 
@@ -37,6 +37,7 @@ func init() {
 	// Add plan subcommands
 	planCmd.AddCommand(tasked.PlanNewCmd)
 	planCmd.AddCommand(tasked.PlanInspectCmd)
+	planCmd.AddCommand(tasked.PlanListCmd)
 }
 
 func Execute() {
