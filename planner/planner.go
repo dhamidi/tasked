@@ -188,7 +188,7 @@ func (p *Planner) Get(name string) (*Plan, error) {
 		acRows.Close() // Close after successful iteration
 
 		// Fetch references for this step
-		refRows, err := p.db.Query("SELECT reference FROM step_references WHERE step_id = ? AND plan_id = ? ORDER BY reference_order ASC", step.id, planID)
+		refRows, err := p.db.Query("SELECT reference_url FROM step_references WHERE step_id = ? AND plan_id = ? ORDER BY reference_order ASC", step.id, planID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to query references for step '%s' in plan '%s': %w", step.id, name, err)
 		}
@@ -566,7 +566,7 @@ func (p *Planner) Save(plan *Plan) error {
 		}
 
 		for j, refText := range step.references {
-			_, err = tx.Exec("INSERT INTO step_references (plan_id, step_id, reference_order, reference) VALUES (?, ?, ?, ?)",
+			_, err = tx.Exec("INSERT INTO step_references (plan_id, step_id, reference_order, reference_url) VALUES (?, ?, ?, ?)",
 				plan.ID, step.id, j, refText)
 			if err != nil {
 				return fmt.Errorf("failed to insert reference for step '%s' in plan '%s': %w", step.id, plan.ID, err)

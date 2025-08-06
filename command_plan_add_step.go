@@ -2,25 +2,30 @@ package tasked
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/dhamidi/tasked/planner"
 	"github.com/spf13/cobra"
 )
 
 var PlanAddStepCmd = &cobra.Command{
-	Use:   "add-step [--after step-id] <plan-name> <step-id> <description> <acceptance-criteria> ...",
+	Use:   "add-step [--after step-id] [--references ref1,ref2] <plan-name> <step-id> <description> <acceptance-criteria> ...",
 	Short: "Add a new step to a plan",
 	Long: `Add a new step to an existing plan. The step can be positioned after a specific
 step using the --after flag. If no --after flag is provided, the step will be added
-at the end of the plan.`,
+at the end of the plan.
+
+References can be added using the --references flag with comma-separated values.`,
 	Args: cobra.MinimumNArgs(3),
 	RunE: RunPlanAddStep,
 }
 
 var afterStepID string
+var referencesFlag string
 
 func init() {
 	PlanAddStepCmd.Flags().StringVar(&afterStepID, "after", "", "ID of the step after which to insert the new step")
+	PlanAddStepCmd.Flags().StringVar(&referencesFlag, "references", "", "Comma-separated list of references (URLs or other reference strings)")
 }
 
 func RunPlanAddStep(cmd *cobra.Command, args []string) error {
@@ -72,8 +77,18 @@ func RunPlanAddStep(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Parse references from comma-separated string
+	var references []string
+	if referencesFlag != "" {
+		references = strings.Split(referencesFlag, ",")
+		// Trim whitespace from each reference
+		for i, ref := range references {
+			references[i] = strings.TrimSpace(ref)
+		}
+	}
+
 	// Add the step at the end first (AddStep always appends)
-	plan.AddStep(stepID, description, acceptanceCriteria, nil)
+	plan.AddStep(stepID, description, acceptanceCriteria, references)
 
 	// If we need to insert it in a specific position (not at the end), reorder
 	if afterStepID != "" && insertIndex < len(plan.Steps)-1 {

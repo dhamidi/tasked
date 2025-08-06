@@ -60,17 +60,16 @@ CREATE INDEX IF NOT EXISTS idx_step_acceptance_criteria_plan_step ON step_accept
 
 -- Trigger to update parent plan's and step's updated_at timestamp when acceptance criteria change
 CREATE TRIGGER IF NOT EXISTS step_acceptance_criteria_updated_at
-AFTER INSERT OR UPDATE OR DELETE ON step_acceptance_criteria
+AFTER INSERT ON step_acceptance_criteria
 FOR EACH ROW
 BEGIN
     -- Update the parent step's updated_at timestamp
     UPDATE steps SET updated_at = CURRENT_TIMESTAMP 
-    WHERE plan_id = COALESCE(NEW.plan_id, OLD.plan_id) 
-    AND id = COALESCE(NEW.step_id, OLD.step_id);
+    WHERE plan_id = NEW.plan_id AND id = NEW.step_id;
     
     -- Update the parent plan's updated_at timestamp
     UPDATE plans SET updated_at = CURRENT_TIMESTAMP 
-    WHERE id = COALESCE(NEW.plan_id, OLD.plan_id);
+    WHERE id = NEW.plan_id;
 END;
 
 -- step_references table: Stores reference URLs for each step
@@ -89,17 +88,16 @@ CREATE INDEX IF NOT EXISTS idx_step_references_plan_step ON step_references(plan
 
 -- Trigger to update parent plan's and step's updated_at timestamp when references change
 CREATE TRIGGER IF NOT EXISTS step_references_updated_at
-AFTER INSERT OR UPDATE OR DELETE ON step_references
+AFTER INSERT ON step_references
 FOR EACH ROW
 BEGIN
     -- Update the parent step's updated_at timestamp
     UPDATE steps SET updated_at = CURRENT_TIMESTAMP 
-    WHERE plan_id = COALESCE(NEW.plan_id, OLD.plan_id) 
-    AND id = COALESCE(NEW.step_id, OLD.step_id);
+    WHERE plan_id = NEW.plan_id AND id = NEW.step_id;
     
     -- Update the parent plan's updated_at timestamp
     UPDATE plans SET updated_at = CURRENT_TIMESTAMP 
-    WHERE id = COALESCE(NEW.plan_id, OLD.plan_id);
+    WHERE id = NEW.plan_id;
 END;
 
 
