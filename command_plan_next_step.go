@@ -54,5 +54,12 @@ func RunPlanNextStep(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if len(nextStep.References()) > 0 {
+		fmt.Printf("\nReferences:\n")
+		for i, reference := range nextStep.References() {
+			fmt.Printf("%d. %s\n", i+1, reference)
+		}
+	}
+
 	return nil
 }
