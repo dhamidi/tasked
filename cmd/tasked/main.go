@@ -38,6 +38,14 @@ func init() {
 	planCmd.AddCommand(tasked.PlanNewCmd)
 	planCmd.AddCommand(tasked.PlanInspectCmd)
 	planCmd.AddCommand(tasked.PlanListCmd)
+	planCmd.AddCommand(tasked.PlanRemoveCmd)
+	planCmd.AddCommand(tasked.PlanRemoveStepsCmd)
+	planCmd.AddCommand(tasked.PlanNextStepCmd)
+	planCmd.AddCommand(tasked.PlanReorderStepsCmd)
+	planCmd.AddCommand(tasked.PlanMarkAsCompletedCmd)
+	planCmd.AddCommand(tasked.PlanIsCompletedCmd)
+	planCmd.AddCommand(tasked.PlanAddStepCmd)
+	planCmd.AddCommand(tasked.PlanMarkAsIncompleteCmd)
 }
 
 func Execute() {
