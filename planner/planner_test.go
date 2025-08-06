@@ -182,8 +182,9 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 2. Add steps to the in-memory plan
-	plan.AddStep("step1", "First step description", []string{"AC1.1", "AC1.2"}, nil)
-	plan.AddStep("step2", "Second step", []string{"AC2.1"}, nil)
+	plan.AddStep("step1", "First step description", []string{"AC1.1", "AC1.2"}, []string{"https://example.com/doc1", "https://example.com/doc2"})
+	plan.AddStep("step2", "Second step", []string{"AC2.1"}, []string{"https://example.com/ref"})
+	plan.AddStep("step3", "Third step", []string{"AC3.1"}, nil) // No references
 
 	// 3. Save the plan
 	err = planner.Save(plan)
@@ -204,8 +205,8 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if retrievedPlan.ID != planName {
 		t.Errorf("Retrieved plan ID mismatch: got %s, want %s", retrievedPlan.ID, planName)
 	}
-	if len(retrievedPlan.Steps) != 2 {
-		t.Fatalf("Retrieved plan step count mismatch: got %d, want 2", len(retrievedPlan.Steps))
+	if len(retrievedPlan.Steps) != 3 {
+		t.Fatalf("Retrieved plan step count mismatch: got %d, want 3", len(retrievedPlan.Steps))
 	}
 
 	// Verify step 1
@@ -222,6 +223,9 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if !reflect.DeepEqual(step1.AcceptanceCriteria(), []string{"AC1.1", "AC1.2"}) {
 		t.Errorf("Step 1 Acceptance Criteria mismatch: got %v", step1.AcceptanceCriteria())
 	}
+	if !reflect.DeepEqual(step1.References(), []string{"https://example.com/doc1", "https://example.com/doc2"}) {
+		t.Errorf("Step 1 References mismatch: got %v", step1.References())
+	}
 
 	// Verify step 2
 	step2 := retrievedPlan.Steps[1]
@@ -237,6 +241,27 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if !reflect.DeepEqual(step2.AcceptanceCriteria(), []string{"AC2.1"}) {
 		t.Errorf("Step 2 Acceptance Criteria mismatch: got %v", step2.AcceptanceCriteria())
 	}
+	if !reflect.DeepEqual(step2.References(), []string{"https://example.com/ref"}) {
+		t.Errorf("Step 2 References mismatch: got %v", step2.References())
+	}
+
+	// Verify step 3
+	step3 := retrievedPlan.Steps[2]
+	if step3.ID() != "step3" {
+		t.Errorf("Step 3 ID mismatch")
+	}
+	if step3.Description() != "Third step" {
+		t.Errorf("Step 3 Description mismatch")
+	}
+	if step3.Status() != "TODO" {
+		t.Errorf("Step 3 Status mismatch")
+	}
+	if !reflect.DeepEqual(step3.AcceptanceCriteria(), []string{"AC3.1"}) {
+		t.Errorf("Step 3 Acceptance Criteria mismatch: got %v", step3.AcceptanceCriteria())
+	}
+	if !reflect.DeepEqual(step3.References(), []string{}) {
+		t.Errorf("Step 3 References mismatch (should be empty): got %v", step3.References())
+	}
 
 	// 6. Modify the plan (e.g., remove step, change status, reorder)
 	retrievedPlan.RemoveSteps([]string{"step1"})
@@ -245,10 +270,10 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarkAsCompleted failed: %v", err)
 	}
-	retrievedPlan.AddStep("step3", "Third step", nil, nil)
+	retrievedPlan.AddStep("step4", "Fourth step", nil, []string{"https://example.com/newref"})
 
-	// Reorder (step3, step2) - Note: step1 was removed
-	retrievedPlan.Reorder([]string{"step3", "step2"})
+	// Reorder (step4, step2, step3) - Note: step1 was removed  
+	retrievedPlan.Reorder([]string{"step4", "step2", "step3"})
 
 	// 7. Save again
 	err = planner.Save(retrievedPlan)
@@ -263,22 +288,37 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 9. Verify final state
-	if len(finalPlan.Steps) != 2 {
-		t.Fatalf("Final plan step count mismatch: got %d, want 2", len(finalPlan.Steps))
+	if len(finalPlan.Steps) != 3 {
+		t.Fatalf("Final plan step count mismatch: got %d, want 3", len(finalPlan.Steps))
 	}
 
 	// Check order and content
-	if finalPlan.Steps[0].ID() != "step3" {
-		t.Errorf("Final Step 1 ID mismatch (expected step3)")
+	if finalPlan.Steps[0].ID() != "step4" {
+		t.Errorf("Final Step 1 ID mismatch (expected step4)")
 	}
 	if finalPlan.Steps[0].Status() != "TODO" {
 		t.Errorf("Final Step 1 Status mismatch (expected TODO)")
+	}
+	if !reflect.DeepEqual(finalPlan.Steps[0].References(), []string{"https://example.com/newref"}) {
+		t.Errorf("Final Step 1 References mismatch: got %v", finalPlan.Steps[0].References())
 	}
 	if finalPlan.Steps[1].ID() != "step2" {
 		t.Errorf("Final Step 2 ID mismatch (expected step2)")
 	}
 	if finalPlan.Steps[1].Status() != "DONE" {
 		t.Errorf("Final Step 2 Status mismatch (expected DONE)")
+	}
+	if !reflect.DeepEqual(finalPlan.Steps[1].References(), []string{"https://example.com/ref"}) {
+		t.Errorf("Final Step 2 References mismatch: got %v", finalPlan.Steps[1].References())
+	}
+	if finalPlan.Steps[2].ID() != "step3" {
+		t.Errorf("Final Step 3 ID mismatch (expected step3)")
+	}
+	if finalPlan.Steps[2].Status() != "TODO" {
+		t.Errorf("Final Step 3 Status mismatch (expected TODO)")
+	}
+	if !reflect.DeepEqual(finalPlan.Steps[2].References(), []string{}) {
+		t.Errorf("Final Step 3 References mismatch (should be empty): got %v", finalPlan.Steps[2].References())
 	}
 	if finalPlan.isNew { // Should be false as it was retrieved from DB
 		t.Errorf("finalPlan.isNew is true after Get, want false")
@@ -426,6 +466,281 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 		t.Error("Expected error when saving a non-new plan that does not exist in DB, got nil")
 	}
 
+}
+
+// TestStep_References tests the References() method specifically.
+func TestStep_References(t *testing.T) {
+	plan := &Plan{ID: "test-references-plan", Steps: []*Step{}}
+	
+	// Test step with multiple references
+	plan.AddStep("step1", "Step 1 desc", nil, []string{"https://example.com/doc1", "https://github.com/repo", "https://docs.example.com"})
+	step1 := plan.Steps[0]
+	refs := step1.References()
+	expected := []string{"https://example.com/doc1", "https://github.com/repo", "https://docs.example.com"}
+	if !reflect.DeepEqual(refs, expected) {
+		t.Errorf("References() returned %v, want %v", refs, expected)
+	}
+	
+	// Test step with single reference
+	plan.AddStep("step2", "Step 2 desc", nil, []string{"https://single.com"})
+	step2 := plan.Steps[1]
+	refs2 := step2.References()
+	expected2 := []string{"https://single.com"}
+	if !reflect.DeepEqual(refs2, expected2) {
+		t.Errorf("References() returned %v, want %v", refs2, expected2)
+	}
+	
+	// Test step with no references
+	plan.AddStep("step3", "Step 3 desc", nil, nil)
+	step3 := plan.Steps[2]
+	refs3 := step3.References()
+	if len(refs3) != 0 {
+		t.Errorf("References() for step with nil references returned %v, want empty slice", refs3)
+	}
+	
+	// Test step with empty references slice
+	plan.AddStep("step4", "Step 4 desc", nil, []string{})
+	step4 := plan.Steps[3]
+	refs4 := step4.References()
+	if !reflect.DeepEqual(refs4, []string{}) {
+		t.Errorf("References() for step with empty references returned %v, want []", refs4)
+	}
+}
+
+// TestPlan_AddStepWithReferences tests the AddStep method specifically for references handling.
+func TestPlan_AddStepWithReferences(t *testing.T) {
+	plan := &Plan{ID: "test-addstep-references", Steps: []*Step{}}
+	
+	// Test adding step with multiple references
+	refs1 := []string{"https://example.com/guide", "https://api.docs.com", "https://tutorial.com"}
+	plan.AddStep("step1", "First step", []string{"AC1"}, refs1)
+	
+	if len(plan.Steps) != 1 {
+		t.Fatalf("Expected 1 step, got %d", len(plan.Steps))
+	}
+	
+	step := plan.Steps[0]
+	if step.ID() != "step1" {
+		t.Errorf("Step ID = %s, want step1", step.ID())
+	}
+	if step.Description() != "First step" {
+		t.Errorf("Step Description = %s, want 'First step'", step.Description())
+	}
+	if !reflect.DeepEqual(step.References(), refs1) {
+		t.Errorf("Step References = %v, want %v", step.References(), refs1)
+	}
+	
+	// Test adding step with nil references
+	plan.AddStep("step2", "Second step", nil, nil)
+	step2 := plan.Steps[1]
+	if len(step2.References()) != 0 {
+		t.Errorf("Step with nil references should return empty slice, got %v", step2.References())
+	}
+	
+	// Test adding step with empty references
+	plan.AddStep("step3", "Third step", nil, []string{})
+	step3 := plan.Steps[2]
+	if !reflect.DeepEqual(step3.References(), []string{}) {
+		t.Errorf("Step with empty references should return empty slice, got %v", step3.References())
+	}
+}
+
+// TestPlanner_ReferencesPersistence tests that references persist through Save/Get cycles.
+func TestPlanner_ReferencesPersistence(t *testing.T) {
+	planner, cleanup := setupTestDB(t)
+	defer cleanup()
+	
+	planName := "test-references-persistence"
+	
+	// Create plan with steps that have different reference configurations
+	plan, err := planner.Create(planName)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	
+	// Step with multiple references
+	refs1 := []string{"https://example.com/doc1", "https://github.com/user/repo", "https://wiki.example.com/page"}
+	plan.AddStep("step1", "Step with multiple refs", []string{"AC1"}, refs1)
+	
+	// Step with single reference  
+	refs2 := []string{"https://single-ref.com"}
+	plan.AddStep("step2", "Step with single ref", []string{"AC2"}, refs2)
+	
+	// Step with no references
+	plan.AddStep("step3", "Step with no refs", []string{"AC3"}, nil)
+	
+	// Step with empty references
+	plan.AddStep("step4", "Step with empty refs", []string{"AC4"}, []string{})
+	
+	// Save the plan
+	err = planner.Save(plan)
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	
+	// Retrieve the plan
+	retrievedPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	
+	// Verify all references persisted correctly
+	if len(retrievedPlan.Steps) != 4 {
+		t.Fatalf("Expected 4 steps, got %d", len(retrievedPlan.Steps))
+	}
+	
+	// Check step1 references
+	step1 := retrievedPlan.Steps[0]
+	if !reflect.DeepEqual(step1.References(), refs1) {
+		t.Errorf("Step1 references mismatch: got %v, want %v", step1.References(), refs1)
+	}
+	
+	// Check step2 references
+	step2 := retrievedPlan.Steps[1]
+	if !reflect.DeepEqual(step2.References(), refs2) {
+		t.Errorf("Step2 references mismatch: got %v, want %v", step2.References(), refs2)
+	}
+	
+	// Check step3 references (should be empty)
+	step3 := retrievedPlan.Steps[2]
+	if !reflect.DeepEqual(step3.References(), []string{}) {
+		t.Errorf("Step3 references should be empty: got %v", step3.References())
+	}
+	
+	// Check step4 references (should be empty)
+	step4 := retrievedPlan.Steps[3]
+	if !reflect.DeepEqual(step4.References(), []string{}) {
+		t.Errorf("Step4 references should be empty: got %v", step4.References())
+	}
+}
+
+// TestPlanner_ReferencesOrder tests that reference order is maintained.
+func TestPlanner_ReferencesOrder(t *testing.T) {
+	planner, cleanup := setupTestDB(t)
+	defer cleanup()
+	
+	planName := "test-references-order"
+	
+	// Create plan with step that has references in specific order
+	plan, err := planner.Create(planName)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	
+	// References in specific order
+	orderedRefs := []string{
+		"https://first.com",
+		"https://second.com", 
+		"https://third.com",
+		"https://fourth.com",
+		"https://fifth.com",
+	}
+	plan.AddStep("step1", "Step with ordered refs", nil, orderedRefs)
+	
+	// Save and retrieve
+	err = planner.Save(plan)
+	if err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+	
+	retrievedPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	
+	// Verify order is maintained
+	step := retrievedPlan.Steps[0]
+	retrievedRefs := step.References()
+	if !reflect.DeepEqual(retrievedRefs, orderedRefs) {
+		t.Errorf("Reference order not maintained.\nGot:  %v\nWant: %v", retrievedRefs, orderedRefs)
+	}
+	
+	// Verify each reference is in the correct position
+	for i, expectedRef := range orderedRefs {
+		if i >= len(retrievedRefs) {
+			t.Errorf("Missing reference at position %d: expected %s", i, expectedRef)
+			continue
+		}
+		if retrievedRefs[i] != expectedRef {
+			t.Errorf("Reference at position %d: got %s, want %s", i, retrievedRefs[i], expectedRef)
+		}
+	}
+}
+
+// TestPlanner_ReferencesWithPlanOperations tests that references work correctly with plan operations.
+func TestPlanner_ReferencesWithPlanOperations(t *testing.T) {
+	planner, cleanup := setupTestDB(t)
+	defer cleanup()
+	
+	planName := "test-references-operations"
+	
+	plan, err := planner.Create(planName)
+	if err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	
+	// Add steps with references
+	plan.AddStep("step1", "First step", nil, []string{"https://step1.com"})
+	plan.AddStep("step2", "Second step", nil, []string{"https://step2-a.com", "https://step2-b.com"})
+	plan.AddStep("step3", "Third step", nil, []string{"https://step3.com"})
+	
+	// Save initial state
+	err = planner.Save(plan)
+	if err != nil {
+		t.Fatalf("Initial save failed: %v", err)
+	}
+	
+	// Retrieve and perform operations
+	retrievedPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Get failed: %v", err)
+	}
+	
+	// Remove step2 (which has multiple references)
+	retrievedPlan.RemoveSteps([]string{"step2"})
+	
+	// Add a new step with references
+	retrievedPlan.AddStep("step4", "Fourth step", nil, []string{"https://step4.com", "https://step4-alt.com"})
+	
+	// Reorder steps
+	retrievedPlan.Reorder([]string{"step4", "step1", "step3"})
+	
+	// Save the modified plan
+	err = planner.Save(retrievedPlan)
+	if err != nil {
+		t.Fatalf("Modified save failed: %v", err)
+	}
+	
+	// Get final state
+	finalPlan, err := planner.Get(planName)
+	if err != nil {
+		t.Fatalf("Final get failed: %v", err)
+	}
+	
+	// Verify final state
+	if len(finalPlan.Steps) != 3 {
+		t.Fatalf("Expected 3 steps in final plan, got %d", len(finalPlan.Steps))
+	}
+	
+	// Check order and references
+	expectedOrder := []struct {
+		id   string
+		refs []string
+	}{
+		{"step4", []string{"https://step4.com", "https://step4-alt.com"}},
+		{"step1", []string{"https://step1.com"}},
+		{"step3", []string{"https://step3.com"}},
+	}
+	
+	for i, expected := range expectedOrder {
+		step := finalPlan.Steps[i]
+		if step.ID() != expected.id {
+			t.Errorf("Step %d ID: got %s, want %s", i, step.ID(), expected.id)
+		}
+		if !reflect.DeepEqual(step.References(), expected.refs) {
+			t.Errorf("Step %d references: got %v, want %v", i, step.References(), expected.refs)
+		}
+	}
 }
 
 // --- Add tests for List, Remove, Compact, MarkAsComplete/Incomplete etc. ---
