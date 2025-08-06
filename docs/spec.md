@@ -23,6 +23,9 @@ tasked plan mark-as-incomplete <plan-name> <step-id>
 tasked plan remove-steps <plan-name> <step-id> ...
 tasked plan reorder-steps <plan-name> <step-id> ...
 tasked plan add-step [--after step-id] <plan-name> <step-id> <description> <acceptance-criteria> ...
+
+# the test subcommand performs a self-test in the current environment
+tasked test <test-name>
 ```
 
 ## Project structure
@@ -47,3 +50,17 @@ The planner module pushes IO to the edges:
 1. Load a plan from storage using (*Planner).Get
 2. Modify the plan to your heart's content
 3. Save it back to storage using (*Planner).Save
+
+## Testing
+
+Testing is implemented through the `test` subcommand, allowing you to make sure that tasked works in your environment.
+
+The test subcommand creates an MCP client using github.com/mark3labs/go-mcp and then invokes tools through the MCP client according to the test scenario.
+
+The default test scenario creates and modifies a plan using all available operations on a plan, and then checks whether the plan is in the expected state.
+
+Each tool call is written to stdout as it is performed.
+
+Only failing assertions are reported on stdout.
+
+If any one assertion fails, the test subcommand exits immediately with exit status 1.
