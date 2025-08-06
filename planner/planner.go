@@ -37,6 +37,7 @@ type Step struct {
 	description string   `json:"description"`
 	status      string   `json:"status"` // "DONE" or "TODO"
 	acceptance  []string `json:"acceptance"`
+	references  []string `json:"references"`
 	stepOrder   int      // Internal field to keep track of order from DB
 }
 
@@ -153,6 +154,7 @@ func (p *Planner) Get(name string) (*Plan, error) {
 			return nil, fmt.Errorf("failed to scan step for plan '%s': %w", name, err)
 		}
 		step.acceptance = []string{} // Initialize acceptance criteria slice
+		step.references = []string{} // Initialize references slice
 		plan.Steps = append(plan.Steps, step)
 		stepsByID[step.id] = step // Store step by ID for later lookup
 	}
@@ -160,7 +162,7 @@ func (p *Planner) Get(name string) (*Plan, error) {
 		return nil, fmt.Errorf("error iterating steps for plan '%s': %w", name, err)
 	}
 
-	// Now, fetch acceptance criteria for each step
+	// Now, fetch acceptance criteria and references for each step
 	// Iterate over the plan.Steps to maintain the order from the database query
 	for _, step := range plan.Steps {
 		acRows, err := p.db.Query("SELECT criterion FROM step_acceptance_criteria WHERE step_id = ? AND plan_id = ? ORDER BY criterion_order ASC", step.id, planID)
@@ -184,6 +186,27 @@ func (p *Planner) Get(name string) (*Plan, error) {
 			return nil, fmt.Errorf("error iterating acceptance criteria for step '%s' in plan '%s': %w", step.id, name, err)
 		}
 		acRows.Close() // Close after successful iteration
+
+		// Fetch references for this step
+		refRows, err := p.db.Query("SELECT reference FROM step_references WHERE step_id = ? AND plan_id = ? ORDER BY reference_order ASC", step.id, planID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to query references for step '%s' in plan '%s': %w", step.id, name, err)
+		}
+
+		for refRows.Next() {
+			var refText string
+			err := refRows.Scan(&refText)
+			if err != nil {
+				refRows.Close() // Ensure closure on error
+				return nil, fmt.Errorf("failed to scan reference for step '%s' in plan '%s': %w", step.id, name, err)
+			}
+			step.references = append(step.references, refText)
+		}
+		if err = refRows.Err(); err != nil {
+			refRows.Close() // Ensure closure on error
+			return nil, fmt.Errorf("error iterating references for step '%s' in plan '%s': %w", step.id, name, err)
+		}
+		refRows.Close() // Close after successful iteration
 	}
 
 	return plan, nil
@@ -253,6 +276,11 @@ func (step *Step) AcceptanceCriteria() []string {
 	return step.acceptance
 }
 
+// References returns the list of references for the step.
+func (step *Step) References() []string {
+	return step.references
+}
+
 // MarkAsCompleted sets the status of the step with the given stepID to "DONE" in-memory.
 // It returns an error if the step is not found.
 func (pl *Plan) MarkAsCompleted(stepID string) error {
@@ -279,12 +307,13 @@ func (pl *Plan) MarkAsIncomplete(stepID string) error {
 
 // AddStep appends a new step to the plan.
 // The new step is initialized with status "TODO".
-func (pl *Plan) AddStep(id, description string, acceptanceCriteria []string) {
+func (pl *Plan) AddStep(id, description string, acceptanceCriteria []string, references []string) {
 	newStep := &Step{
 		id:          id,
 		description: description,
 		status:      "TODO", // Default status for new steps
 		acceptance:  acceptanceCriteria,
+		references:  references,
 	}
 	pl.Steps = append(pl.Steps, newStep)
 }
@@ -482,6 +511,10 @@ func (p *Planner) Save(plan *Plan) error {
 			if err != nil {
 				return fmt.Errorf("failed to delete old acceptance criteria for step '%s' in plan '%s': %w", dbStepID, plan.ID, err)
 			}
+			_, err = tx.Exec("DELETE FROM step_references WHERE plan_id = ? AND step_id = ?", plan.ID, dbStepID)
+			if err != nil {
+				return fmt.Errorf("failed to delete old references for step '%s' in plan '%s': %w", dbStepID, plan.ID, err)
+			}
 			_, err = tx.Exec("DELETE FROM steps WHERE plan_id = ? AND id = ?", plan.ID, dbStepID)
 			if err != nil {
 				return fmt.Errorf("failed to delete step '%s' from plan '%s': %w", dbStepID, plan.ID, err)
@@ -515,6 +548,19 @@ func (p *Planner) Save(plan *Plan) error {
 				plan.ID, step.id, j, acText)
 			if err != nil {
 				return fmt.Errorf("failed to insert acceptance criterion for step '%s' in plan '%s': %w", step.id, plan.ID, err)
+			}
+		}
+
+		_, err = tx.Exec("DELETE FROM step_references WHERE plan_id = ? AND step_id = ?", plan.ID, step.id)
+		if err != nil {
+			return fmt.Errorf("failed to delete old references for step '%s' in plan '%s': %w", step.id, plan.ID, err)
+		}
+
+		for j, refText := range step.references {
+			_, err = tx.Exec("INSERT INTO step_references (plan_id, step_id, reference_order, reference) VALUES (?, ?, ?, ?)",
+				plan.ID, step.id, j, refText)
+			if err != nil {
+				return fmt.Errorf("failed to insert reference for step '%s' in plan '%s': %w", step.id, plan.ID, err)
 			}
 		}
 	}

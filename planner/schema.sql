@@ -58,6 +58,20 @@ CREATE TABLE IF NOT EXISTS step_acceptance_criteria (
 -- Index for faster acceptance criteria lookup
 CREATE INDEX IF NOT EXISTS idx_step_acceptance_criteria_plan_step ON step_acceptance_criteria(plan_id, step_id);
 
+-- step_references table: Stores references for each step
+CREATE TABLE IF NOT EXISTS step_references (
+    plan_id TEXT NOT NULL,
+    step_id TEXT NOT NULL,
+    reference TEXT NOT NULL,
+    reference_order INTEGER NOT NULL, -- Order of references for a step
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (plan_id, step_id, reference_order),
+    FOREIGN KEY (plan_id, step_id) REFERENCES steps(plan_id, id) ON DELETE CASCADE
+);
+
+-- Index for faster references lookup
+CREATE INDEX IF NOT EXISTS idx_step_references_plan_step ON step_references(plan_id, step_id);
+
 -- Trigger to update parent plan's and step's updated_at timestamp when criteria change
 -- Note: SQLite does not directly support triggers on INSERT/DELETE/UPDATE for a table
 -- that cause an update on a *grandparent* table (plans via steps) in a simple way

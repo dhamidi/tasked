@@ -182,8 +182,8 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	}
 
 	// 2. Add steps to the in-memory plan
-	plan.AddStep("step1", "First step description", []string{"AC1.1", "AC1.2"})
-	plan.AddStep("step2", "Second step", []string{"AC2.1"})
+	plan.AddStep("step1", "First step description", []string{"AC1.1", "AC1.2"}, nil)
+	plan.AddStep("step2", "Second step", []string{"AC2.1"}, nil)
 
 	// 3. Save the plan
 	err = planner.Save(plan)
@@ -245,7 +245,7 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MarkAsCompleted failed: %v", err)
 	}
-	retrievedPlan.AddStep("step3", "Third step", nil)
+	retrievedPlan.AddStep("step3", "Third step", nil, nil)
 
 	// Reorder (step3, step2) - Note: step1 was removed
 	retrievedPlan.Reorder([]string{"step3", "step2"})
@@ -289,8 +289,8 @@ func TestPlanner_SaveAndGet(t *testing.T) {
 // TestPlan_MarkStatus tests the in-memory status changes of steps in a Plan.
 func TestPlan_MarkStatus(t *testing.T) {
 	plan := &Plan{ID: "test-status-plan", Steps: []*Step{}}
-	plan.AddStep("step1", "Step 1 desc", nil)
-	plan.AddStep("step2", "Step 2 desc", nil)
+	plan.AddStep("step1", "Step 1 desc", nil, nil)
+	plan.AddStep("step2", "Step 2 desc", nil, nil)
 
 	// Check initial status (should be TODO)
 	if plan.Steps[0].Status() != "TODO" {
@@ -345,7 +345,7 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 	if !plan1.isNew {
 		t.Fatal("plan1.isNew should be true initially")
 	}
-	plan1.AddStep("s1", "Step 1", nil)
+	plan1.AddStep("s1", "Step 1", nil, nil)
 
 	// 2. Save it (should be an INSERT)
 	err = planner.Save(plan1)
@@ -367,7 +367,7 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 	}
 
 	// 4. Modify and save again (should be an UPDATE)
-	plan1.AddStep("s2", "Step 2", nil)
+	plan1.AddStep("s2", "Step 2", nil, nil)
 	err = planner.Save(plan1) // plan1.isNew is already false
 	if err != nil {
 		t.Fatalf("Second save of plan1 failed: %v", err)
@@ -389,7 +389,7 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 	}
 
 	// 6. Test saving a plan that was retrieved (so isNew is false)
-	retrievedPlan.AddStep("s3", "Step 3", nil)
+	retrievedPlan.AddStep("s3", "Step 3", nil, nil)
 	err = planner.Save(retrievedPlan)
 	if err != nil {
 		t.Fatalf("Save of retrieved plan failed: %v", err)
@@ -412,7 +412,7 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create failed for plan2: %v", err)
 	}
-	plan2.AddStep("s4", "Step 4", nil)
+	plan2.AddStep("s4", "Step 4", nil, nil)
 	err = planner.Save(plan2) // isNew is true, so Save will try to INSERT
 	if err == nil {
 		t.Error("Expected error when saving a new plan with an ID that already exists in DB, but got nil")
@@ -420,7 +420,7 @@ func TestPlanner_Save_NewAndExisting(t *testing.T) {
 
 	// 8. Test saving a plan that is NOT new but does not exist in DB (should fail)
 	nonExistentPlan := &Plan{ID: "non-existent-plan", isNew: false}
-	nonExistentPlan.AddStep("s1", "some step", nil)
+	nonExistentPlan.AddStep("s1", "some step", nil, nil)
 	err = planner.Save(nonExistentPlan)
 	if err == nil {
 		t.Error("Expected error when saving a non-new plan that does not exist in DB, got nil")

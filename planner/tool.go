@@ -136,7 +136,7 @@ func handleAddSteps(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*
 	}
 
 	acceptanceCriteria := req.GetStringSlice("acceptance_criteria", []string{})
-	plan.AddStep(stepID, description, acceptanceCriteria)
+	plan.AddStep(stepID, description, acceptanceCriteria, nil)
 
 	// Save the plan
 	err = p.Save(plan)

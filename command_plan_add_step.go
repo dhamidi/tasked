@@ -73,7 +73,7 @@ func RunPlanAddStep(cmd *cobra.Command, args []string) error {
 	}
 
 	// Add the step at the end first (AddStep always appends)
-	plan.AddStep(stepID, description, acceptanceCriteria)
+	plan.AddStep(stepID, description, acceptanceCriteria, nil)
 
 	// If we need to insert it in a specific position (not at the end), reorder
 	if afterStepID != "" && insertIndex < len(plan.Steps)-1 {
