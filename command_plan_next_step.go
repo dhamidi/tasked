@@ -21,7 +21,7 @@ func RunPlanNextStep(cmd *cobra.Command, args []string) error {
 
 	// Get the database file path from settings
 	dbPath := GlobalSettings.GetDatabaseFile()
-	
+
 	// Initialize the planner
 	p, err := planner.New(dbPath)
 	if err != nil {
@@ -46,7 +46,7 @@ func RunPlanNextStep(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Next step: %s\n", nextStep.ID())
 	fmt.Printf("Status: %s\n", nextStep.Status())
 	fmt.Printf("\n%s\n", nextStep.Description())
-	
+
 	if len(nextStep.AcceptanceCriteria()) > 0 {
 		fmt.Printf("\nAcceptance Criteria:\n")
 		for i, criterion := range nextStep.AcceptanceCriteria() {

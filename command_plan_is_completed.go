@@ -23,7 +23,7 @@ func RunPlanIsCompleted(cmd *cobra.Command, args []string) error {
 
 	// Get the database file path from settings
 	dbPath := GlobalSettings.GetDatabaseFile()
-	
+
 	// Initialize the planner
 	p, err := planner.New(dbPath)
 	if err != nil {

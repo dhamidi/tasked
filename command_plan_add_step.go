@@ -35,7 +35,7 @@ func RunPlanAddStep(cmd *cobra.Command, args []string) error {
 
 	// Get the database file path from settings
 	dbPath := GlobalSettings.GetDatabaseFile()
-	
+
 	// Initialize the planner
 	p, err := planner.New(dbPath)
 	if err != nil {
@@ -79,20 +79,20 @@ func RunPlanAddStep(cmd *cobra.Command, args []string) error {
 	if afterStepID != "" && insertIndex < len(plan.Steps)-1 {
 		// Create new order that puts our step in the right position
 		var newOrder []string
-		
+
 		// Add all steps before the insertion point
 		for i := 0; i < insertIndex; i++ {
 			newOrder = append(newOrder, plan.Steps[i].ID())
 		}
-		
+
 		// Add our new step
 		newOrder = append(newOrder, stepID)
-		
+
 		// Add all steps after the insertion point (excluding our step which is at the end)
 		for i := insertIndex; i < len(plan.Steps)-1; i++ {
 			newOrder = append(newOrder, plan.Steps[i].ID())
 		}
-		
+
 		plan.Reorder(newOrder)
 	}
 

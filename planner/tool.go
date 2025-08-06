@@ -19,7 +19,7 @@ type ToolInfo struct {
 //
 // Action mappings from old tools:
 // - create_plan → add_steps action (creates plan if it doesn't exist)
-// - get_plan → inspect action  
+// - get_plan → inspect action
 // - list_plans → list_plans action
 // - save_plan → removed (saving happens automatically)
 // - remove_plans → remove_plans action
@@ -40,12 +40,12 @@ func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 	// Create the unified manage_plan tool
 	tool := mcp.NewTool("manage_plan",
 		mcp.WithDescription("Manage plans and their steps with various operations"),
-		
+
 		// Required parameters
 		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to operate on")),
 		mcp.WithString("action", mcp.Required(), mcp.Enum(
 			"add_steps",
-			"inspect", 
+			"inspect",
 			"list_plans",
 			"remove_plans",
 			"compact_plans",
@@ -55,7 +55,7 @@ func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 			"get_next_step",
 			"is_completed",
 		), mcp.Description("Action to perform")),
-		
+
 		// Conditional parameters based on action
 		mcp.WithString("step_id", mcp.Description("ID of the step (required for set_status, single step operations)")),
 		mcp.WithString("description", mcp.Description("Description of the step (required for add_steps when adding single step)")),
@@ -168,9 +168,9 @@ func handleInspectPlan(ctx context.Context, req mcp.CallToolRequest, p *Planner)
 	steps := make([]map[string]interface{}, len(plan.Steps))
 	for i, step := range plan.Steps {
 		steps[i] = map[string]interface{}{
-			"id":                 step.ID(),
-			"description":        step.Description(),
-			"status":             step.Status(),
+			"id":                  step.ID(),
+			"description":         step.Description(),
+			"status":              step.Status(),
 			"acceptance_criteria": step.AcceptanceCriteria(),
 		}
 	}
@@ -200,7 +200,7 @@ func handleRemovePlans(ctx context.Context, req mcp.CallToolRequest, p *Planner)
 	}
 
 	results := p.Remove(planNames)
-	
+
 	// Convert results to a JSON-serializable format
 	jsonResults := make(map[string]string)
 	for name, err := range results {
@@ -345,9 +345,9 @@ func handleGetNextStep(ctx context.Context, req mcp.CallToolRequest, p *Planner)
 	}
 
 	result, _ := json.Marshal(map[string]interface{}{
-		"id":                 nextStep.ID(),
-		"description":        nextStep.Description(),
-		"status":             nextStep.Status(),
+		"id":                  nextStep.ID(),
+		"description":         nextStep.Description(),
+		"status":              nextStep.Status(),
 		"acceptance_criteria": nextStep.AcceptanceCriteria(),
 	})
 

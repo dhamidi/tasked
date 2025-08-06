@@ -18,7 +18,7 @@ and task count information. This provides a quick overview of all plans in the d
 func RunPlanList(cmd *cobra.Command, args []string) error {
 	// Get the database file path from settings
 	dbPath := GlobalSettings.GetDatabaseFile()
-	
+
 	// Initialize the planner
 	p, err := planner.New(dbPath)
 	if err != nil {
@@ -44,7 +44,7 @@ func RunPlanList(cmd *cobra.Command, args []string) error {
 		if plan.TotalTasks == 0 {
 			fmt.Printf("%s [%s] (no tasks)\n", plan.Name, status)
 		} else {
-			fmt.Printf("%s [%s] (%d/%d tasks completed)\n", 
+			fmt.Printf("%s [%s] (%d/%d tasks completed)\n",
 				plan.Name, status, plan.CompletedTasks, plan.TotalTasks)
 		}
 	}
