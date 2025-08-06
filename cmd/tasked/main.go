@@ -19,8 +19,24 @@ and manage them through simple CLI commands.`,
 	},
 }
 
+var planCmd = &cobra.Command{
+	Use:   "plan",
+	Short: "Manage plans",
+	Long: `Manage plans - create, list, inspect, and modify plans and their steps.`,
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
+}
+
 func init() {
 	rootCmd.PersistentFlags().StringVar(&tasked.GlobalSettings.DatabaseFile, "database-file", "", "Path to the SQLite database file (default: ~/.tasked/tasks.db)")
+	
+	// Add plan subcommand group
+	rootCmd.AddCommand(planCmd)
+	
+	// Add plan subcommands
+	planCmd.AddCommand(planNewCmd)
+	planCmd.AddCommand(planInspectCmd)
 }
 
 func Execute() {
