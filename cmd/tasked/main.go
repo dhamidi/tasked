@@ -35,8 +35,8 @@ func init() {
 	rootCmd.AddCommand(planCmd)
 	
 	// Add plan subcommands
-	planCmd.AddCommand(planNewCmd)
-	planCmd.AddCommand(planInspectCmd)
+	planCmd.AddCommand(tasked.PlanNewCmd)
+	planCmd.AddCommand(tasked.PlanInspectCmd)
 }
 
 func Execute() {

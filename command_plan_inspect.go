@@ -8,16 +8,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var planInspectCmd = &cobra.Command{
+var PlanInspectCmd = &cobra.Command{
 	Use:   "inspect <plan-name>",
 	Short: "Display detailed plan information",
 	Long: `Display detailed information about a plan including all its steps, their status,
 and acceptance criteria. This provides a comprehensive view of the plan's current state.`,
 	Args: cobra.ExactArgs(1),
-	RunE: runPlanInspect,
+	RunE: RunPlanInspect,
 }
 
-func runPlanInspect(cmd *cobra.Command, args []string) error {
+func RunPlanInspect(cmd *cobra.Command, args []string) error {
 	planName := args[0]
 
 	// Get the database file path from settings

@@ -8,16 +8,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var planNewCmd = &cobra.Command{
+var PlanNewCmd = &cobra.Command{
 	Use:   "new <plan-name>",
 	Short: "Create a new empty plan",
 	Long: `Create a new empty plan with the specified name. The plan will be created
 in the database and can then be populated with steps using other plan commands.`,
 	Args: cobra.ExactArgs(1),
-	RunE: runPlanNew,
+	RunE: RunPlanNew,
 }
 
-func runPlanNew(cmd *cobra.Command, args []string) error {
+func RunPlanNew(cmd *cobra.Command, args []string) error {
 	planName := args[0]
 
 	// Get the database file path from settings
