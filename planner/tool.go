@@ -14,175 +14,132 @@ type ToolInfo struct {
 	Handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
 }
 
-// MakePlannerToolHandler returns a tool handler function that provides access to all planner operations.
-// It also returns a slice of tools that should be registered with the MCP server.
-func MakePlannerToolHandler(databasePath string) ([]ToolInfo, error) {
+// MakePlannerToolHandler returns a single tool handler that provides access to all planner operations.
+// This replaces the previous 14 separate tools with a single "manage_plan" tool that uses action parameters.
+//
+// Action mappings from old tools:
+// - create_plan → add_steps action (creates plan if it doesn't exist)
+// - get_plan → inspect action  
+// - list_plans → list_plans action
+// - save_plan → removed (saving happens automatically)
+// - remove_plans → remove_plans action
+// - compact_plans → compact_plans action
+// - add_step → add_steps action
+// - remove_steps → remove_steps action
+// - reorder_steps → reorder_steps action
+// - mark_step_completed/mark_step_incomplete → set_status action
+// - inspect_plan → inspect action
+// - get_next_step → get_next_step action
+// - is_plan_completed → is_completed action
+func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 	planner, err := New(databasePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize planner: %w", err)
+		return ToolInfo{}, fmt.Errorf("failed to initialize planner: %w", err)
 	}
 
-	// Define all planner tools with their handlers
-	tools := []ToolInfo{
-		{createPlanTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCreatePlan(ctx, req, planner)
-		}},
-		{getPlanTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetPlan(ctx, req, planner)
-		}},
-		{listPlansTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleListPlans(ctx, req, planner)
-		}},
-		{savePlanTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleSavePlan(ctx, req, planner)
-		}},
-		{removePlansTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleRemovePlans(ctx, req, planner)
-		}},
-		{compactPlansTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleCompactPlans(ctx, req, planner)
-		}},
-		{addStepTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleAddStep(ctx, req, planner)
-		}},
-		{removeStepsTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleRemoveSteps(ctx, req, planner)
-		}},
-		{reorderStepsTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleReorderSteps(ctx, req, planner)
-		}},
-		{markStepCompletedTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleMarkStepCompleted(ctx, req, planner)
-		}},
-		{markStepIncompleteTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleMarkStepIncomplete(ctx, req, planner)
-		}},
-		{inspectPlanTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleInspectPlan(ctx, req, planner)
-		}},
-		{getNextStepTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleGetNextStep(ctx, req, planner)
-		}},
-		{isPlanCompletedTool(), func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return handleIsPlanCompleted(ctx, req, planner)
-		}},
+	// Create the unified manage_plan tool
+	tool := mcp.NewTool("manage_plan",
+		mcp.WithDescription("Manage plans and their steps with various operations"),
+		
+		// Required parameters
+		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to operate on")),
+		mcp.WithString("action", mcp.Required(), mcp.Enum(
+			"add_steps",
+			"inspect", 
+			"list_plans",
+			"remove_plans",
+			"compact_plans",
+			"remove_steps",
+			"reorder_steps",
+			"set_status",
+			"get_next_step",
+			"is_completed",
+		), mcp.Description("Action to perform")),
+		
+		// Conditional parameters based on action
+		mcp.WithString("step_id", mcp.Description("ID of the step (required for set_status, single step operations)")),
+		mcp.WithString("description", mcp.Description("Description of the step (required for add_steps when adding single step)")),
+		mcp.WithArray("acceptance_criteria", mcp.WithStringItems(), mcp.Description("Acceptance criteria for the step (for add_steps)")),
+		mcp.WithArray("step_ids", mcp.WithStringItems(), mcp.Description("IDs of steps (required for remove_steps)")),
+		mcp.WithArray("step_order", mcp.WithStringItems(), mcp.Description("New order of step IDs (required for reorder_steps)")),
+		mcp.WithArray("plan_names", mcp.WithStringItems(), mcp.Description("Names of plans to remove (required for remove_plans)")),
+		mcp.WithString("status", mcp.Enum("completed", "incomplete"), mcp.Description("Status to set for step (required for set_status)")),
+	)
+
+	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handleManagePlan(ctx, req, planner)
 	}
 
-	return tools, nil
+	return ToolInfo{Tool: tool, Handler: handler}, nil
 }
 
-// Tool definitions
-func createPlanTool() mcp.Tool {
-	return mcp.NewTool("create_plan",
-		mcp.WithDescription("Create a new plan with the given name"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Name of the plan to create")),
-	)
-}
-
-func getPlanTool() mcp.Tool {
-	return mcp.NewTool("get_plan",
-		mcp.WithDescription("Retrieve a plan by name from the database"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Name of the plan to retrieve")),
-	)
-}
-
-func listPlansTool() mcp.Tool {
-	return mcp.NewTool("list_plans",
-		mcp.WithDescription("List all plans with summary information"),
-	)
-}
-
-func savePlanTool() mcp.Tool {
-	return mcp.NewTool("save_plan",
-		mcp.WithDescription("Save a plan to the database"),
-		mcp.WithString("name", mcp.Required(), mcp.Description("Name of the plan to save")),
-	)
-}
-
-func removePlansTool() mcp.Tool {
-	return mcp.NewTool("remove_plans",
-		mcp.WithDescription("Remove plans from the database"),
-		mcp.WithArray("names", mcp.Required(), mcp.WithStringItems(), mcp.Description("Names of plans to remove")),
-	)
-}
-
-func compactPlansTool() mcp.Tool {
-	return mcp.NewTool("compact_plans",
-		mcp.WithDescription("Remove all completed plans from the database"),
-	)
-}
-
-func addStepTool() mcp.Tool {
-	return mcp.NewTool("add_step",
-		mcp.WithDescription("Add a step to a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to add step to")),
-		mcp.WithString("step_id", mcp.Required(), mcp.Description("ID for the new step")),
-		mcp.WithString("description", mcp.Required(), mcp.Description("Description of the step")),
-		mcp.WithArray("acceptance_criteria", mcp.WithStringItems(), mcp.Description("Acceptance criteria for the step")),
-	)
-}
-
-func removeStepsTool() mcp.Tool {
-	return mcp.NewTool("remove_steps",
-		mcp.WithDescription("Remove steps from a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to remove steps from")),
-		mcp.WithArray("step_ids", mcp.Required(), mcp.WithStringItems(), mcp.Description("IDs of steps to remove")),
-	)
-}
-
-func reorderStepsTool() mcp.Tool {
-	return mcp.NewTool("reorder_steps",
-		mcp.WithDescription("Reorder steps in a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to reorder steps in")),
-		mcp.WithArray("step_order", mcp.Required(), mcp.WithStringItems(), mcp.Description("New order of step IDs")),
-	)
-}
-
-func markStepCompletedTool() mcp.Tool {
-	return mcp.NewTool("mark_step_completed",
-		mcp.WithDescription("Mark a step as completed in a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan containing the step")),
-		mcp.WithString("step_id", mcp.Required(), mcp.Description("ID of the step to mark as completed")),
-	)
-}
-
-func markStepIncompleteTool() mcp.Tool {
-	return mcp.NewTool("mark_step_incomplete",
-		mcp.WithDescription("Mark a step as incomplete in a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan containing the step")),
-		mcp.WithString("step_id", mcp.Required(), mcp.Description("ID of the step to mark as incomplete")),
-	)
-}
-
-func inspectPlanTool() mcp.Tool {
-	return mcp.NewTool("inspect_plan",
-		mcp.WithDescription("Get a formatted string representation of a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to inspect")),
-	)
-}
-
-func getNextStepTool() mcp.Tool {
-	return mcp.NewTool("get_next_step",
-		mcp.WithDescription("Get the next incomplete step in a plan"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to get next step from")),
-	)
-}
-
-func isPlanCompletedTool() mcp.Tool {
-	return mcp.NewTool("is_plan_completed",
-		mcp.WithDescription("Check if all steps in a plan are completed"),
-		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to check")),
-	)
-}
-
-// Tool handlers
-func handleCreatePlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+// handleManagePlan is the main handler that dispatches to specific action handlers
+func handleManagePlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
+	action, err := req.RequireString("action")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	plan, err := p.Create(name)
+	switch action {
+	case "add_steps":
+		return handleAddSteps(ctx, req, p)
+	case "inspect":
+		return handleInspectPlan(ctx, req, p)
+	case "list_plans":
+		return handleListPlans(ctx, req, p)
+	case "remove_plans":
+		return handleRemovePlans(ctx, req, p)
+	case "compact_plans":
+		return handleCompactPlans(ctx, req, p)
+	case "remove_steps":
+		return handleRemoveSteps(ctx, req, p)
+	case "reorder_steps":
+		return handleReorderSteps(ctx, req, p)
+	case "set_status":
+		return handleSetStatus(ctx, req, p)
+	case "get_next_step":
+		return handleGetNextStep(ctx, req, p)
+	case "is_completed":
+		return handleIsPlanCompleted(ctx, req, p)
+	default:
+		return mcp.NewToolResultError(fmt.Sprintf("unknown action: %s", action)), nil
+	}
+}
+
+// Action handlers
+
+func handleAddSteps(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
+	planName, err := req.RequireString("plan_name")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// Get or create the plan
+	plan, err := p.Get(planName)
+	if err != nil {
+		// If plan doesn't exist, create it
+		plan, err = p.Create(planName)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to create plan: %s", err.Error())), nil
+		}
+	}
+
+	// Add single step using individual parameters
+	stepID, err := req.RequireString("step_id")
+	if err != nil {
+		return mcp.NewToolResultError("step_id required"), nil
+	}
+
+	description, err := req.RequireString("description")
+	if err != nil {
+		return mcp.NewToolResultError("description required"), nil
+	}
+
+	acceptanceCriteria := req.GetStringSlice("acceptance_criteria", []string{})
+	plan.AddStep(stepID, description, acceptanceCriteria)
+
+	// Save the plan
+	err = p.Save(plan)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -195,18 +152,19 @@ func handleCreatePlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) 
 	return mcp.NewToolResultText(string(result)), nil
 }
 
-func handleGetPlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
+func handleInspectPlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
+	planName, err := req.RequireString("plan_name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	plan, err := p.Get(name)
+	plan, err := p.Get(planName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Convert to a JSON-serializable format
+	// Check if this is a detailed inspection or simple get
+	// For compatibility, return detailed JSON format like the old get_plan
 	steps := make([]map[string]interface{}, len(plan.Steps))
 	for i, step := range plan.Steps {
 		steps[i] = map[string]interface{}{
@@ -235,37 +193,13 @@ func handleListPlans(ctx context.Context, req mcp.CallToolRequest, p *Planner) (
 	return mcp.NewToolResultText(string(result)), nil
 }
 
-func handleSavePlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	name, err := req.RequireString("name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Get the plan first (could be a newly created one or existing one)
-	plan, err := p.Get(name)
-	if err != nil {
-		// If plan doesn't exist, try to create it
-		plan, err = p.Create(name)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("plan not found and could not create: %s", err.Error())), nil
-		}
-	}
-
-	err = p.Save(plan)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Plan '%s' saved successfully", name)), nil
-}
-
 func handleRemovePlans(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	names, err := req.RequireStringSlice("names")
+	planNames, err := req.RequireStringSlice("plan_names")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	results := p.Remove(names)
+	results := p.Remove(planNames)
 	
 	// Convert results to a JSON-serializable format
 	jsonResults := make(map[string]string)
@@ -288,42 +222,6 @@ func handleCompactPlans(ctx context.Context, req mcp.CallToolRequest, p *Planner
 	}
 
 	return mcp.NewToolResultText("Completed plans compacted successfully"), nil
-}
-
-func handleAddStep(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	planName, err := req.RequireString("plan_name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	stepID, err := req.RequireString("step_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	description, err := req.RequireString("description")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	acceptanceCriteria := req.GetStringSlice("acceptance_criteria", []string{})
-
-	// Get the plan
-	plan, err := p.Get(planName)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Add the step
-	plan.AddStep(stepID, description, acceptanceCriteria)
-
-	// Save the plan
-	err = p.Save(plan)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Step '%s' added to plan '%s'", stepID, planName)), nil
 }
 
 func handleRemoveSteps(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
@@ -384,7 +282,7 @@ func handleReorderSteps(ctx context.Context, req mcp.CallToolRequest, p *Planner
 	return mcp.NewToolResultText(fmt.Sprintf("Steps reordered in plan '%s'", planName)), nil
 }
 
-func handleMarkStepCompleted(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
+func handleSetStatus(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
 	planName, err := req.RequireString("plan_name")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -395,14 +293,27 @@ func handleMarkStepCompleted(ctx context.Context, req mcp.CallToolRequest, p *Pl
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	status, err := req.RequireString("status")
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
 	// Get the plan
 	plan, err := p.Get(planName)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	// Mark step as completed
-	err = plan.MarkAsCompleted(stepID)
+	// Set the status
+	switch status {
+	case "completed":
+		err = plan.MarkAsCompleted(stepID)
+	case "incomplete":
+		err = plan.MarkAsIncomplete(stepID)
+	default:
+		return mcp.NewToolResultError(fmt.Sprintf("invalid status: %s (must be 'completed' or 'incomplete')", status)), nil
+	}
+
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -413,55 +324,7 @@ func handleMarkStepCompleted(ctx context.Context, req mcp.CallToolRequest, p *Pl
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Step '%s' marked as completed in plan '%s'", stepID, planName)), nil
-}
-
-func handleMarkStepIncomplete(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	planName, err := req.RequireString("plan_name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	stepID, err := req.RequireString("step_id")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Get the plan
-	plan, err := p.Get(planName)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Mark step as incomplete
-	err = plan.MarkAsIncomplete(stepID)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Save the plan
-	err = p.Save(plan)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	return mcp.NewToolResultText(fmt.Sprintf("Step '%s' marked as incomplete in plan '%s'", stepID, planName)), nil
-}
-
-func handleInspectPlan(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
-	planName, err := req.RequireString("plan_name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	// Get the plan
-	plan, err := p.Get(planName)
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-
-	inspection := plan.Inspect()
-	return mcp.NewToolResultText(inspection), nil
+	return mcp.NewToolResultText(fmt.Sprintf("Step '%s' marked as %s in plan '%s'", stepID, status, planName)), nil
 }
 
 func handleGetNextStep(ctx context.Context, req mcp.CallToolRequest, p *Planner) (*mcp.CallToolResult, error) {
@@ -510,5 +373,3 @@ func handleIsPlanCompleted(ctx context.Context, req mcp.CallToolRequest, p *Plan
 
 	return mcp.NewToolResultText(string(result)), nil
 }
-
-

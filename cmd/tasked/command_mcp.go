@@ -27,10 +27,10 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 	// Get the database file path from settings
 	dbPath := tasked.GlobalSettings.GetDatabaseFile()
 	
-	// Initialize the planner tools
-	toolInfos, err := planner.MakePlannerToolHandler(dbPath)
+	// Initialize the planner tool
+	toolInfo, err := planner.MakePlannerToolHandler(dbPath)
 	if err != nil {
-		return fmt.Errorf("failed to initialize planner tools: %w", err)
+		return fmt.Errorf("failed to initialize planner tool: %w", err)
 	}
 
 	// Create a new MCP server
@@ -40,10 +40,8 @@ func runMCPServer(cmd *cobra.Command, args []string) error {
 		server.WithLogging(),
 	)
 
-	// Register all the planner tools
-	for _, toolInfo := range toolInfos {
-		srv.AddTool(toolInfo.Tool, toolInfo.Handler)
-	}
+	// Register the planner tool
+	srv.AddTool(toolInfo.Tool, toolInfo.Handler)
 
 	// Start the server on stdio
 	log.Printf("Starting MCP server with database: %s", dbPath)
