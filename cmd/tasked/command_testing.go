@@ -242,7 +242,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	if !ok || len(steps) != 4 {
 		failTest("Expected 4 steps in plan, got %d", len(steps))
 	}
-	
+
 	// Verify references in step-1 (should have multiple references)
 	step1 := steps[0].(map[string]interface{})
 	references1, ok := step1["references"].([]interface{})
@@ -252,7 +252,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	if references1[0].(string) != "doc-1" || references1[1].(string) != "spec-A" {
 		failTest("Expected step-1 references ['doc-1', 'spec-A'], got %v", references1)
 	}
-	
+
 	// Verify references in step-2 (should have single reference)
 	step2 := steps[1].(map[string]interface{})
 	references2, ok := step2["references"].([]interface{})
@@ -262,7 +262,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	if references2[0].(string) != "guide-B" {
 		failTest("Expected step-2 reference 'guide-B', got %v", references2[0])
 	}
-	
+
 	// Verify step-3 has no references (empty array or nil)
 	step3 := steps[2].(map[string]interface{})
 	references3, exists := step3["references"]
@@ -271,7 +271,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 			failTest("Expected step-3 to have no references, got %v", refs)
 		}
 	}
-	
+
 	// Verify step-multi-refs has multiple references
 	stepMulti := steps[3].(map[string]interface{})
 	referencesMulti, ok := stepMulti["references"].([]interface{})
@@ -303,7 +303,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	if firstStepID != "step-1" {
 		failTest("Expected next step to be 'step-1', got '%s'", firstStepID)
 	}
-	
+
 	// Verify references are included in get_next_step response
 	nextStepRefs, ok := nextStep["references"].([]interface{})
 	if !ok || len(nextStepRefs) != 2 {
@@ -349,7 +349,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	if secondStepID != "step-2" {
 		failTest("Expected next step to be 'step-2' after completing step-1, got '%s'", secondStepID)
 	}
-	
+
 	// Verify step-2 has different references than step-1
 	step2Refs, ok := nextStep["references"].([]interface{})
 	if !ok || len(step2Refs) != 1 {
@@ -735,18 +735,18 @@ func runPlanSubcommandTest() error {
 		return fmt.Errorf("failed to get next step after marking incomplete: %w", err)
 	}
 	assertCommandOutput(stdout, []string{"step-1", "doc-1", "spec-A"}, "plan next-step after marking step-1 incomplete")
-	
+
 	// Test references persistence: Complete step-1 and step-1.5, then check step-2 references
 	stdout, err = execPlanCommand("mark-as-completed", []string{testPlan, "step-1"}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to mark step-1 as completed for persistence test: %w", err)
 	}
-	
+
 	stdout, err = execPlanCommand("mark-as-completed", []string{testPlan, "step-1.5"}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to mark step-1.5 as completed for persistence test: %w", err)
 	}
-	
+
 	// Now step-2 should be next and should have its reference
 	stdout, err = execPlanCommand("next-step", []string{testPlan}, tempDB)
 	if err != nil {
@@ -912,7 +912,7 @@ func runPlanSubcommandTest() error {
 		"ref-1", "ref-2", "ref-3",
 		"References:",
 	}, "plan inspect with multiple acceptance criteria and references")
-	
+
 	// Test next-step with multiple references
 	stdout, err = execPlanCommand("next-step", []string{testPlan2}, tempDB)
 	if err != nil {
