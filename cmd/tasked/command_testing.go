@@ -140,13 +140,14 @@ func runDefaultTest() error {
 func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	testPlan := "test-plan"
 
-	// Test 1: add_steps - Create plan with 3 steps
+	// Test 1: add_steps - Create plan with 3 steps, including references
 	logToolCall("add_steps", map[string]interface{}{
 		"plan_name":           testPlan,
 		"action":              "add_steps",
 		"step_id":             "step-1",
 		"description":         "First test step",
 		"acceptance_criteria": []string{"Complete the first task"},
+		"references":          []string{"doc-1", "spec-A"},
 	})
 	result, err := callTool(ctx, c, "manage_plan", map[string]interface{}{
 		"plan_name":           testPlan,
@@ -154,6 +155,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 		"step_id":             "step-1",
 		"description":         "First test step",
 		"acceptance_criteria": []string{"Complete the first task"},
+		"references":          []string{"doc-1", "spec-A"},
 	})
 	if err != nil {
 		failTest("Failed to add first step: %v", err)
@@ -166,6 +168,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 		"step_id":             "step-2",
 		"description":         "Second test step",
 		"acceptance_criteria": []string{"Complete the second task"},
+		"references":          []string{"guide-B"},
 	})
 	result, err = callTool(ctx, c, "manage_plan", map[string]interface{}{
 		"plan_name":           testPlan,
@@ -173,6 +176,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 		"step_id":             "step-2",
 		"description":         "Second test step",
 		"acceptance_criteria": []string{"Complete the second task"},
+		"references":          []string{"guide-B"},
 	})
 	if err != nil {
 		failTest("Failed to add second step: %v", err)
@@ -198,7 +202,29 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	}
 	assertSuccess(result, "add_steps step-3")
 
-	// Test 2: inspect - Verify plan structure and content
+	// Test 1b: add_steps - Test step with multiple references
+	logToolCall("add_steps", map[string]interface{}{
+		"plan_name":           testPlan,
+		"action":              "add_steps",
+		"step_id":             "step-multi-refs",
+		"description":         "Step with multiple references",
+		"acceptance_criteria": []string{"Test multiple references functionality"},
+		"references":          []string{"ref-X", "ref-Y", "ref-Z"},
+	})
+	result, err = callTool(ctx, c, "manage_plan", map[string]interface{}{
+		"plan_name":           testPlan,
+		"action":              "add_steps",
+		"step_id":             "step-multi-refs",
+		"description":         "Step with multiple references",
+		"acceptance_criteria": []string{"Test multiple references functionality"},
+		"references":          []string{"ref-X", "ref-Y", "ref-Z"},
+	})
+	if err != nil {
+		failTest("Failed to add step with multiple references: %v", err)
+	}
+	assertSuccess(result, "add_steps step-multi-refs")
+
+	// Test 2: inspect - Verify plan structure and content including references
 	logToolCall("inspect", map[string]interface{}{
 		"plan_name": testPlan,
 		"action":    "inspect",
@@ -213,11 +239,53 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	assertSuccess(result, "inspect")
 	inspectData := parseJSONResult(getResultText(result))
 	steps, ok := inspectData["steps"].([]interface{})
-	if !ok || len(steps) != 3 {
-		failTest("Expected 3 steps in plan, got %d", len(steps))
+	if !ok || len(steps) != 4 {
+		failTest("Expected 4 steps in plan, got %d", len(steps))
+	}
+	
+	// Verify references in step-1 (should have multiple references)
+	step1 := steps[0].(map[string]interface{})
+	references1, ok := step1["references"].([]interface{})
+	if !ok || len(references1) != 2 {
+		failTest("Expected 2 references in step-1, got %v", references1)
+	}
+	if references1[0].(string) != "doc-1" || references1[1].(string) != "spec-A" {
+		failTest("Expected step-1 references ['doc-1', 'spec-A'], got %v", references1)
+	}
+	
+	// Verify references in step-2 (should have single reference)
+	step2 := steps[1].(map[string]interface{})
+	references2, ok := step2["references"].([]interface{})
+	if !ok || len(references2) != 1 {
+		failTest("Expected 1 reference in step-2, got %v", references2)
+	}
+	if references2[0].(string) != "guide-B" {
+		failTest("Expected step-2 reference 'guide-B', got %v", references2[0])
+	}
+	
+	// Verify step-3 has no references (empty array or nil)
+	step3 := steps[2].(map[string]interface{})
+	references3, exists := step3["references"]
+	if exists {
+		if refs, ok := references3.([]interface{}); ok && len(refs) > 0 {
+			failTest("Expected step-3 to have no references, got %v", refs)
+		}
+	}
+	
+	// Verify step-multi-refs has multiple references
+	stepMulti := steps[3].(map[string]interface{})
+	referencesMulti, ok := stepMulti["references"].([]interface{})
+	if !ok || len(referencesMulti) != 3 {
+		failTest("Expected 3 references in step-multi-refs, got %v", referencesMulti)
+	}
+	expectedRefs := []string{"ref-X", "ref-Y", "ref-Z"}
+	for i, expectedRef := range expectedRefs {
+		if referencesMulti[i].(string) != expectedRef {
+			failTest("Expected step-multi-refs reference[%d] to be '%s', got '%s'", i, expectedRef, referencesMulti[i])
+		}
 	}
 
-	// Test 3: get_next_step - Check first incomplete step
+	// Test 3: get_next_step - Check first incomplete step and verify references
 	logToolCall("get_next_step", map[string]interface{}{
 		"plan_name": testPlan,
 		"action":    "get_next_step",
@@ -234,6 +302,15 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	firstStepID := nextStep["id"].(string)
 	if firstStepID != "step-1" {
 		failTest("Expected next step to be 'step-1', got '%s'", firstStepID)
+	}
+	
+	// Verify references are included in get_next_step response
+	nextStepRefs, ok := nextStep["references"].([]interface{})
+	if !ok || len(nextStepRefs) != 2 {
+		failTest("Expected 2 references in next step response, got %v", nextStepRefs)
+	}
+	if nextStepRefs[0].(string) != "doc-1" || nextStepRefs[1].(string) != "spec-A" {
+		failTest("Expected next step references ['doc-1', 'spec-A'], got %v", nextStepRefs)
 	}
 
 	// Test 4: set_status - Mark first step as DONE
@@ -254,7 +331,7 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	}
 	assertSuccess(result, "set_status step-1 completed")
 
-	// Test 5: get_next_step - Verify next step changed
+	// Test 5: get_next_step - Verify next step changed and check different references
 	logToolCall("get_next_step", map[string]interface{}{
 		"plan_name": testPlan,
 		"action":    "get_next_step",
@@ -271,6 +348,15 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 	secondStepID := nextStep["id"].(string)
 	if secondStepID != "step-2" {
 		failTest("Expected next step to be 'step-2' after completing step-1, got '%s'", secondStepID)
+	}
+	
+	// Verify step-2 has different references than step-1
+	step2Refs, ok := nextStep["references"].([]interface{})
+	if !ok || len(step2Refs) != 1 {
+		failTest("Expected 1 reference in step-2 next step response, got %v", step2Refs)
+	}
+	if step2Refs[0].(string) != "guide-B" {
+		failTest("Expected step-2 next step reference 'guide-B', got %v", step2Refs[0])
 	}
 
 	// Test 6: list_plans - Verify plan exists in list
@@ -303,21 +389,21 @@ func runManagePlanTestScenario(ctx context.Context, c *client.Client) error {
 		failTest("Plan '%s' not found in plan list", testPlan)
 	}
 
-	// Test 7: remove_steps - Remove one specific step
+	// Test 7: remove_steps - Remove multiple steps including one with references
 	logToolCall("remove_steps", map[string]interface{}{
 		"plan_name": testPlan,
 		"action":    "remove_steps",
-		"step_ids":  []string{"step-3"},
+		"step_ids":  []string{"step-3", "step-multi-refs"},
 	})
 	result, err = callTool(ctx, c, "manage_plan", map[string]interface{}{
 		"plan_name": testPlan,
 		"action":    "remove_steps",
-		"step_ids":  []string{"step-3"},
+		"step_ids":  []string{"step-3", "step-multi-refs"},
 	})
 	if err != nil {
-		failTest("Failed to remove step: %v", err)
+		failTest("Failed to remove steps: %v", err)
 	}
-	assertSuccess(result, "remove_steps step-3")
+	assertSuccess(result, "remove_steps step-3 and step-multi-refs")
 
 	// Test 8: reorder_steps - Change step order
 	logToolCall("reorder_steps", map[string]interface{}{
@@ -541,14 +627,14 @@ func runPlanSubcommandTest() error {
 	}
 	assertCommandOutput(stdout, []string{"Created plan"}, "plan new")
 
-	// Test 2: plan add-step - Add multiple steps with acceptance criteria
-	stdout, err = execPlanCommand("add-step", []string{testPlan, "step-1", "First test step", "Complete the first task"}, tempDB)
+	// Test 2: plan add-step - Add multiple steps with acceptance criteria and references
+	stdout, err = execPlanCommand("add-step", []string{testPlan, "step-1", "First test step", "Complete the first task", "--references", "doc-1,spec-A"}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to add step-1: %w", err)
 	}
 	assertCommandOutput(stdout, []string{"Added step"}, "plan add-step step-1")
 
-	stdout, err = execPlanCommand("add-step", []string{testPlan, "step-2", "Second test step", "Complete the second task"}, tempDB)
+	stdout, err = execPlanCommand("add-step", []string{testPlan, "step-2", "Second test step", "Complete the second task", "--references", "guide-B"}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to add step-2: %w", err)
 	}
@@ -575,17 +661,18 @@ func runPlanSubcommandTest() error {
 	// Validate that the plan appears and has proper format
 	assertCommandOutput(stdout, []string{testPlan, "4 tasks"}, "plan list format")
 
-	// Test 4: plan inspect - Verify plan structure and detailed content
+	// Test 4: plan inspect - Verify plan structure and detailed content including references
 	stdout, err = execPlanCommand("inspect", []string{testPlan}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to inspect plan: %w", err)
 	}
-	// Check for step IDs, descriptions, and acceptance criteria
+	// Check for step IDs, descriptions, acceptance criteria, and references
 	expectedInspectContent := []string{
 		"step-1", "step-1.5", "step-2", "step-3",
 		"First test step", "Middle step", "Second test step", "Third test step",
 		"Complete the first task", "Complete the middle task", "Complete the second task", "Complete the third task",
 		"TODO", "Acceptance Criteria:",
+		"doc-1", "spec-A", "guide-B", "References:",
 	}
 	assertCommandOutput(stdout, expectedInspectContent, "plan inspect detailed content")
 
@@ -610,12 +697,12 @@ func runPlanSubcommandTest() error {
 			step1Position, step15Position, step2Position)
 	}
 
-	// Test 5: plan next-step - Get first incomplete step
+	// Test 5: plan next-step - Get first incomplete step and verify references
 	stdout, err = execPlanCommand("next-step", []string{testPlan}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to get next step: %w", err)
 	}
-	assertCommandOutput(stdout, []string{"step-1"}, "plan next-step")
+	assertCommandOutput(stdout, []string{"step-1", "doc-1", "spec-A"}, "plan next-step")
 
 	// Test 6: plan mark-as-completed - Mark a step as done
 	stdout, err = execPlanCommand("mark-as-completed", []string{testPlan, "step-1"}, tempDB)
@@ -624,12 +711,16 @@ func runPlanSubcommandTest() error {
 	}
 	assertCommandOutput(stdout, []string{"marked as completed"}, "plan mark-as-completed step-1")
 
-	// Test 7: plan next-step - Verify next step changed to step-1.5
+	// Test 7: plan next-step - Verify next step changed to step-1.5 (no references)
 	stdout, err = execPlanCommand("next-step", []string{testPlan}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to get next step after completion: %w", err)
 	}
 	assertCommandOutput(stdout, []string{"step-1.5"}, "plan next-step after step-1 completion")
+	// step-1.5 should not contain the references from step-1
+	if strings.Contains(stdout, "doc-1") || strings.Contains(stdout, "spec-A") {
+		return fmt.Errorf("step-1.5 next-step output should not contain step-1 references: %s", stdout)
+	}
 
 	// Test 8: plan mark-as-incomplete - Mark step back to todo
 	stdout, err = execPlanCommand("mark-as-incomplete", []string{testPlan, "step-1"}, tempDB)
@@ -638,12 +729,30 @@ func runPlanSubcommandTest() error {
 	}
 	assertCommandOutput(stdout, []string{"as incomplete"}, "plan mark-as-incomplete step-1")
 
-	// Verify step-1 is now the next step again
+	// Verify step-1 is now the next step again with references restored
 	stdout, err = execPlanCommand("next-step", []string{testPlan}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to get next step after marking incomplete: %w", err)
 	}
-	assertCommandOutput(stdout, []string{"step-1"}, "plan next-step after marking step-1 incomplete")
+	assertCommandOutput(stdout, []string{"step-1", "doc-1", "spec-A"}, "plan next-step after marking step-1 incomplete")
+	
+	// Test references persistence: Complete step-1 and step-1.5, then check step-2 references
+	stdout, err = execPlanCommand("mark-as-completed", []string{testPlan, "step-1"}, tempDB)
+	if err != nil {
+		return fmt.Errorf("failed to mark step-1 as completed for persistence test: %w", err)
+	}
+	
+	stdout, err = execPlanCommand("mark-as-completed", []string{testPlan, "step-1.5"}, tempDB)
+	if err != nil {
+		return fmt.Errorf("failed to mark step-1.5 as completed for persistence test: %w", err)
+	}
+	
+	// Now step-2 should be next and should have its reference
+	stdout, err = execPlanCommand("next-step", []string{testPlan}, tempDB)
+	if err != nil {
+		return fmt.Errorf("failed to get step-2 as next step: %w", err)
+	}
+	assertCommandOutput(stdout, []string{"step-2", "guide-B"}, "plan next-step step-2 with references")
 
 	// Test 9: plan remove-steps - Remove a specific step and validate removal
 	stdout, err = execPlanCommand("remove-steps", []string{testPlan, "step-3"}, tempDB)
@@ -783,13 +892,13 @@ func runPlanSubcommandTest() error {
 		return fmt.Errorf("failed to create second test plan: %w", err)
 	}
 
-	// Add steps with multiple acceptance criteria
-	stdout, err = execPlanCommand("add-step", []string{testPlan2, "multi-step", "Step with multiple criteria", "First criterion", "Second criterion", "Third criterion"}, tempDB)
+	// Add steps with multiple acceptance criteria and multiple references
+	stdout, err = execPlanCommand("add-step", []string{testPlan2, "multi-step", "Step with multiple criteria", "First criterion", "Second criterion", "Third criterion", "--references", "ref-1,ref-2,ref-3"}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to add step with multiple criteria: %w", err)
 	}
 
-	// Verify multiple acceptance criteria appear in inspect
+	// Verify multiple acceptance criteria and references appear in inspect
 	stdout, err = execPlanCommand("inspect", []string{testPlan2}, tempDB)
 	if err != nil {
 		return fmt.Errorf("failed to inspect plan with multiple criteria: %w", err)
@@ -800,7 +909,16 @@ func runPlanSubcommandTest() error {
 		"First criterion",
 		"Second criterion",
 		"Third criterion",
-	}, "plan inspect with multiple acceptance criteria")
+		"ref-1", "ref-2", "ref-3",
+		"References:",
+	}, "plan inspect with multiple acceptance criteria and references")
+	
+	// Test next-step with multiple references
+	stdout, err = execPlanCommand("next-step", []string{testPlan2}, tempDB)
+	if err != nil {
+		return fmt.Errorf("failed to get next step for multi-reference test: %w", err)
+	}
+	assertCommandOutput(stdout, []string{"multi-step", "ref-1", "ref-2", "ref-3"}, "plan next-step with multiple references")
 
 	// Clean up second plan
 	stdout, err = execPlanCommand("remove", []string{testPlan2}, tempDB)
