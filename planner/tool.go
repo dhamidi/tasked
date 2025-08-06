@@ -39,7 +39,7 @@ func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 
 	// Create the unified manage_plan tool
 	tool := mcp.NewTool("manage_plan",
-		mcp.WithDescription("Manage plans and their steps with various operations"),
+		mcp.WithDescription("Manage plans and their steps with various operations. Steps can include references to relevant files, URLs, or documentation."),
 
 		// Required parameters
 		mcp.WithString("plan_name", mcp.Required(), mcp.Description("Name of the plan to operate on")),
@@ -60,7 +60,7 @@ func MakePlannerToolHandler(databasePath string) (ToolInfo, error) {
 		mcp.WithString("step_id", mcp.Description("ID of the step (required for set_status, single step operations)")),
 		mcp.WithString("description", mcp.Description("Description of the step (required for add_steps when adding single step)")),
 		mcp.WithArray("acceptance_criteria", mcp.WithStringItems(), mcp.Description("Acceptance criteria for the step (for add_steps)")),
-		mcp.WithArray("references", mcp.WithStringItems(), mcp.Description("References for the step (for add_steps)")),
+		mcp.WithArray("references", mcp.WithStringItems(), mcp.Description("References for the step (for add_steps) - URLs, file paths, or other resource identifiers (1-5 items)")),
 		mcp.WithArray("step_ids", mcp.WithStringItems(), mcp.Description("IDs of steps (required for remove_steps)")),
 		mcp.WithArray("step_order", mcp.WithStringItems(), mcp.Description("New order of step IDs (required for reorder_steps)")),
 		mcp.WithArray("plan_names", mcp.WithStringItems(), mcp.Description("Names of plans to remove (required for remove_plans)")),

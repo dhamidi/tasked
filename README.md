@@ -71,7 +71,7 @@ The system follows a "push IO to the edges" design pattern:
 ### Available Plan Operations
 
 - **Plan Management**: `new`, `remove`, `list`, `inspect`
-- **Step Management**: `add-step`, `remove-steps`, `reorder-steps`
+- **Step Management**: `add-step` (with references), `remove-steps`, `reorder-steps`
 - **Progress Tracking**: `mark-as-completed`, `mark-as-incomplete`, `next-step`, `is-completed`
 
 ### Storage Details
@@ -79,7 +79,7 @@ The system follows a "push IO to the edges" design pattern:
 - Plans are stored in a local SQLite database
 - Default location: `~/.tasked/tasks.db`
 - Custom location via `--database-file` flag
-- Each plan contains multiple steps with IDs, descriptions, and acceptance criteria
+- Each plan contains multiple steps with IDs, descriptions, acceptance criteria, and optional references
 - Steps can be marked as completed or incomplete
 - Step order can be customized and reordered as needed
 
@@ -96,6 +96,10 @@ tasked plan list
 # Add a step to a plan
 tasked plan add-step "my-project" "step-1" "Setup environment" "Environment is configured"
 
+# Add a step with references
+tasked plan add-step "my-project" "step-2" "Configure authentication" "Auth is working" \
+  --references "https://auth-docs.com,/config/auth.yaml"
+
 # Mark a step as completed
 tasked plan mark-as-completed "my-project" "step-1"
 
@@ -108,6 +112,32 @@ tasked plan is-completed "my-project"
 # Inspect plan details
 tasked plan inspect "my-project"
 ```
+
+### Working with References
+
+References help link steps to relevant documentation, files, or other resources needed for implementation:
+
+```bash
+# Add step with file references
+tasked plan add-step "web-app" "setup-db" "Configure database" "DB connects successfully" \
+  --references "/config/database.yml,/docs/db-setup.md"
+
+# Add step with web documentation
+tasked plan add-step "api" "auth" "Implement OAuth" "OAuth flow works" \
+  --references "https://oauth.net/2/,https://tools.ietf.org/rfc/rfc6749.txt"
+
+# Mix of local files and web resources
+tasked plan add-step "deploy" "ci-cd" "Setup CI/CD" "Pipeline deploys successfully" \
+  --references "/scripts/deploy.sh,https://docs.github.com/actions,/config/prod.env"
+```
+
+#### Reference Guidelines
+
+- **File paths**: Use absolute paths for local files (`/path/to/file.js`)
+- **URLs**: Include relevant documentation, APIs, or specifications
+- **Limit**: 1-5 references per step for clarity
+- **Purpose**: Point to information needed for step implementation
+- **Format**: Comma-separated, no spaces around commas
 
 ### Testing
 

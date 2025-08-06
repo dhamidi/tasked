@@ -22,11 +22,41 @@ tasked plan is-completed <plan-name>
 tasked plan mark-as-incomplete <plan-name> <step-id>
 tasked plan remove-steps <plan-name> <step-id> ...
 tasked plan reorder-steps <plan-name> <step-id> ...
-tasked plan add-step [--after step-id] <plan-name> <step-id> <description> <acceptance-criteria> ...
+tasked plan add-step [--after step-id] [--references ref1,ref2] <plan-name> <step-id> <description> <acceptance-criteria> ...
 
 # the test subcommand performs a self-test in the current environment
 tasked test <test-name>
 ```
+
+## References Feature
+
+Steps can include references to relevant resources using the `--references` flag when adding steps. References help point to information needed for implementing the step.
+
+### Using References
+
+```bash
+# Add a step with references to documentation and files
+tasked plan add-step my-plan setup-auth "Configure authentication" "Auth is working" \
+  --references "https://example.com/auth-docs,/path/to/config.yaml"
+
+# Add multiple references (comma-separated)
+tasked plan add-step my-plan deploy "Deploy application" "App is deployed" \
+  --references "deploy-script.sh,https://deploy-docs.com,/config/prod.env"
+```
+
+### Reference Format
+
+- **URLs**: Web links to documentation, APIs, or specifications
+- **File paths**: Absolute paths to local files (recommended for code files)
+- **Format**: Comma-separated list, 1-5 references per step
+- **Purpose**: Point to information needed for step implementation
+
+### Best Practices
+
+- Use absolute file paths for local files: `/home/user/project/config.yml`
+- Include relevant documentation URLs for external resources
+- Keep references focused and directly related to the step
+- Limit to 5 references per step for clarity
 
 ## Project structure
 
